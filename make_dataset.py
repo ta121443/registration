@@ -17,7 +17,6 @@ def save_npy(npy_path, img, img_shape):
     img = img.reshape(-1, *img_shape)
   np.save(npy_path, img)
 
-
 def make_dataset(contour_dcm_path, contour_list, mr_dir_path, dt_type):
 
   """
@@ -91,10 +90,10 @@ def make_dataset(contour_dcm_path, contour_list, mr_dir_path, dt_type):
 
 
 if __name__ == '__main__':
-  dates = ['0831'] * 4
-  # dates = ['0829', '0902', '0906', '0908']
-  dt_type = 'moving'
-  # dt_type = 'fixed'
+  # dates = ['0829'] * 4 + ['0831'] * 4
+  dates = ['0831', '0902', '0906', '0908', '0829', '0902', '0906', '0908']
+  # dt_type = 'moving'
+  dt_type = 'fixed'
   for date in dates:
     fr_image_path = '/home/uchiyama/work/VoxelMorph/MR-MR/16/FrImage'
     contour_dcm_path = f'{fr_image_path}/contour/dcm/contour_{date}.dcm'
@@ -103,3 +102,6 @@ if __name__ == '__main__':
     contour_list = ['Prostate D+E']
 
     make_dataset(contour_dcm_path, contour_list, mr_dir_path, dt_type)
+
+  moving = np.load('../fixed.npy')
+  print(moving.shape)

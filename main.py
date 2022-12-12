@@ -2,6 +2,7 @@ import numpy as np
 import tensorflow as tf
 import cv2
 import os
+import gc
 import json
 import matplotlib.pyplot as plt
 from keras.callbacks import ModelCheckpoint, EarlyStopping
@@ -81,10 +82,10 @@ def save_data(input, pred, mask_input, data_dir_path, img_size, kind):
 def main(ndim, bw_path, min_delta, patience, nb_epochs, steps_per_epoch, model_path, data_dir_path):
 
   # データのロード
-  mov = np.load('moving.npy')
-  fix = np.load('fixed.npy')
-  mov_mask = np.load('moving_mask.npy')
-  fix_mask = np.load('fixed_mask.npy')
+  mov = np.load('../moving.npy')
+  fix = np.load('../fixed.npy')
+  mov_mask = np.load('../moving_mask.npy')
+  fix_mask = np.load('../fixed_mask.npy')
   img_size = mov.shape[1]
 
   # データの分割
@@ -95,23 +96,7 @@ def main(ndim, bw_path, min_delta, patience, nb_epochs, steps_per_epoch, model_p
   moving_mask, mov_mask_val, mov_mask_test = split_data(mov_mask, nb_val, nb_test)
   fixed_mask, fix_mask_val, fix_mask_test = split_data(fix_mask, nb_val, nb_test)
 
-  mov_val = mov[110]
-  mov_val = mov_val[np.newaxis,:,:]
-  mov_test = mov[111]
-  mov_test = mov_test[np.newaxis,:,:]
-  fix_val = fix[110]
-  fix_val = fix_val[np.newaxis,:,:]
-  fix_test = fix[111]
-  fix_test = fix_test[np.newaxis,:,:]
-
-  mov_mask_val = mov_mask[110]
-  mov_mask_val = mov_mask_val[np.newaxis,:,:]
-  mov_mask_test = mov_mask[111]
-  mov_mask_test = mov_mask_test[np.newaxis,:,:]
-  fix_mask_val = fix_mask[110]
-  fix_mask_val = fix_mask_val[np.newaxis,:,:]
-  fix_mask_test = fix_mask[111]
-  fix_mask_test = fix_mask_test[np.newaxis,:,:]
+  print(moving.shape, mov_val.shape, mov_test.shape)
 
   # メモリの開放
   del mov, mov_mask, fix, fix_mask
@@ -176,7 +161,7 @@ if __name__ == ('__main__'):
   min_delta = 1e-6
   patience = 100
   nb_epochs = 1000
-  steps_per_epoch = 50
+  steps_per_epoch = 20
   data_path = '/home/uchiyama/work/VoxelMorph/MR-MR/data'
   bw_path = f'{data_path}/bestweight/bestweight.hdf5'
   model_path = f'{data_path}/model.hdf5'
