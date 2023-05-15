@@ -1,6 +1,18 @@
 from matplotlib.path import Path
 import pydicom as pd
 import numpy as np
+import os
+
+def save_npy(npy_path, img, img_shape):
+  """
+  画像やマスクのndarrayを保存する。その際、すでにデータセットが存在している場合は、そのデータセットの末尾に追加する形で作成する。
+  """
+  if os.path.isfile(npy_path):
+    exist_imgs = np.load(npy_path)
+    img = np.append(exist_imgs, img)
+    img = img.reshape(-1, *img_shape)
+  np.save(npy_path, img)
+  
 
 def make_contours(rtss, contour_list):
 

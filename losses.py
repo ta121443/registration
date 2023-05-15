@@ -10,6 +10,8 @@ class MSE:
     return K.square(y_true - y_pred)
 
   def loss(self, y_true, y_pred, reduce='mean'):
+    y_true = y_true[:,150:430,...]
+    y_pred = y_pred[:,150:430,...]
     mse = self.mse(y_true, y_pred)
     if reduce == 'mean':
       mse = K.mean(mse)
@@ -17,7 +19,7 @@ class MSE:
       mse = K.max(mse)
     elif reduce is not None:
       raise ValueError(f'Unknown MSE reduction type: {reduce}')
-    
+
     return 1.0 / (self.image_sigma ** 2) * mse
 
 class Grad:
@@ -27,6 +29,7 @@ class Grad:
     self.vox_weight = vox_weight
 
   def _diffs(self, y):
+    y = y[:,200:430,...]
     vol_shape = y.get_shape().as_list()[1:-1]
     ndims = len(vol_shape)
 

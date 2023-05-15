@@ -5,6 +5,7 @@ import os
 import gc
 import json
 import matplotlib.pyplot as plt
+import datetime
 from keras.callbacks import ModelCheckpoint, EarlyStopping
 
 # 自作関数
@@ -37,9 +38,9 @@ def vxm_data_generator(moving, fixed, batch_size=8):
 
     yield(inputs, outputs)
 
-def test_data_generator(moving, fixed, mov_mask, fix_mask, batch_size=8):
+def test_data_generator(moving, fixed, mov_mask, fix_mask, batch_size=10):
   while True:
-    idx = np.random.randint(0, moving.shape[0], size=batch_size)
+    idx = np.random.randint(0, 8, size=batch_size)
     moving_images = moving[idx, ..., np.newaxis]
     fixed_images = fixed[idx, ..., np.newaxis]
     inputs = [moving_images, fixed_images]
@@ -77,7 +78,7 @@ def save_data(input, pred, mask_input, data_dir_path, img_size, kind):
 
   mask_fixed = binarization(mask_fixed)
   mask_moved = binarization(mask_moved)
-  return dsc(mask_fixed, mask_moved)
+  return [dsc(mask_moving, mask_fixed), dsc(mask_fixed, mask_moved)]
 
 def main(ndim, bw_path, min_delta, patience, nb_epochs, steps_per_epoch, model_path, data_dir_path):
 
@@ -89,8 +90,8 @@ def main(ndim, bw_path, min_delta, patience, nb_epochs, steps_per_epoch, model_p
   img_size = mov.shape[1]
 
   # データの分割
-  nb_val = 1
-  nb_test = 1
+  nb_val = 50
+  nb_test = 50
   moving, mov_val, mov_test = split_data(mov, nb_val, nb_test)
   fixed, fix_val, fix_test = split_data(fix, nb_val, nb_test)
   moving_mask, mov_mask_val, mov_mask_test = split_data(mov_mask, nb_val, nb_test)
@@ -135,7 +136,8 @@ def main(ndim, bw_path, min_delta, patience, nb_epochs, steps_per_epoch, model_p
     os.makedirs(data_dir_path)
   plot_history(hist, data_dir_path, nb_epochs, img_size)
 
-  vxm_model.load_weights(bw_path)
+  # vxm_model.load_weights(bw_path)
+  vxm_model.load_weights(f'{data_path}/bestweight/bestweight_Bladder_448.hdf5')
 
   dsc_json = {}
   val_generator = test_data_generator(mov_val, fix_val, mov_mask_val, fix_mask_val, batch_size=1)
@@ -143,28 +145,31 @@ def main(ndim, bw_path, min_delta, patience, nb_epochs, steps_per_epoch, model_p
   val_pred = vxm_model.predict(val_input)
 
   val_dsc = save_data(val_input, val_pred, val_mask_input, data_dir_path, img_size, 'val')
-  dsc_json['val'] = val_dsc
+  dsc_json['val'] = {}
+  dsc_json['val']['moving'] = val_dsc[0]
+  dsc_json['val']['moved'] = val_dsc[1]
 
   test_generator = test_data_generator(mov_test, fix_test, mov_mask_test, fix_mask_test, batch_size=1)
   test_input, test_mask_input = next(test_generator)
   test_pred = vxm_model.predict(test_input)
 
   test_dsc = save_data(test_input, test_pred, test_mask_input, data_dir_path, img_size, 'test')
-  dsc_json['test'] = test_dsc
+  dsc_json['test'] = {}
+  dsc_json['test']['moving'] = test_dsc[0]
+  dsc_json['test']['fixed'] = test_dsc[1]
 
   with open(f'{data_dir_path}/dsc', 'w') as f:
     json.dump(dsc_json, f, ensure_ascii=False, indent=4)
 
-
 if __name__ == ('__main__'):
+  date = datetime.date.today()
   ndim = 2  # 二次元データ
   min_delta = 1e-6
   patience = 100
-  nb_epochs = 1000
-  steps_per_epoch = 20
+  nb_epochs = 1
+  steps_per_epoch = 100
   data_path = '/home/uchiyama/work/VoxelMorph/MR-MR/data'
-  bw_path = f'{data_path}/bestweight/bestweight.hdf5'
+  bw_path = f'{data_path}/bestweight/bestweight_Bladder.hdf5'
   model_path = f'{data_path}/model.hdf5'
-  data_dir_path = f'{data_path}/{nb_epochs}epochs'
+  data_dir_path = f'{data_path}/{date.year}_{date.month}_{date.day}_{nb_epochs}epochs'
   main(ndim, bw_path, min_delta, patience, nb_epochs, steps_per_epoch, model_path, data_dir_path)
-

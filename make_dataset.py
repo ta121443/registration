@@ -2,20 +2,78 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import pydicom as pd
 import os
+import gc
 import cv2
 
-from dicom import MRImage
 from dicom import *
 
-def save_npy(npy_path, img, img_shape):
-  """
-  画像やマスクのndarrayを保存する。その際、すでにデータセットが存在している場合は、そのデータセットの末尾に追加する形で作成する。
-  """
-  if os.path.isfile(npy_path):
-    exist_imgs = np.load(npy_path)
-    img = np.append(exist_imgs, img)
-    img = img.reshape(-1, *img_shape)
-  np.save(npy_path, img)
+def around_prostate(prostate_st, dcm_num, mr, st, img_shape):
+  img_array = np.array([])
+  mask_array = np.array([])
+
+  prostate_start = 0
+  for i in range(dcm_num):
+    if mr.z_array[i] in prostate_st['paths']:
+      if i >= 10:
+        prostate_start = i - 10
+        break
+      else:
+        prostate_start = i
+        break
+
+  for frame in range(prostate_start, prostate_start+50):
+    img = mr.volume[frame,:,:]
+    img /= np.amax(img)
+    img_array = np.append(img_array, img)
+
+    dpi = img_shape[0] / 4.61
+    fig = plt.figure(figsize=(6,6), dpi=dpi)
+    ax = fig.add_subplot(111)
+
+    extent = (mr.x_min, mr.x_max, mr.y_max, mr.y_min)
+    black = np.zeros(shape=img_shape)
+    ax.imshow(black, cmap='gray', extent=extent)
+
+    if mr.z_array[frame] in st['paths']:
+      patch = patches.PathPatch(st['paths'][mr.z_array[frame]], fill=True, ec=st['ec'], fc=st['fc'], lw=2)
+      ax.add_patch(patch)
+
+    ax.set_aspect('equal')
+    ax.axis('off')
+    plt.savefig('mask.png', facecolor='azure', bbox_inches='tight', pad_inches=0)
+    plt.close()
+
+    mask = cv2.imread('mask.png')
+    mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
+    mask[mask != 0] = 255
+    mask_array = np.append(mask_array, mask)
+
+  return img_array, mask_array
+
+def organs_specific(st, dcm_num, mr):
+  img_array = np.array([])
+  mask_array = np.array([])
+
+  for frame in range(dcm_num):
+    if mr.z_array[frame] in st['paths']:
+      img = mr.volume[frame,:,:]
+      img /= np.amax(img)
+      img_array = np.append(img_array, img)
+
+      dpi = img_shape[0] / 4.61
+      fig = plt.figure(figsize=(6,6), dpi=dpi)
+      ax = fig.add_subplot(111)
+
+      extent = (mr.x_min, mr.x_max, mr.y_max, mr.y_min)
+      black = np.zeros(shape=img_shape)
+      ax.imshow(black, cmap='gray', extent=extent)
+      patch = patches.PathPatch(st['paths'][mr.z_array[frame]], fill=True, ec=st['ec'], fc=st['fc'], lw=2)
+      ax.add_patch(patch)
+
+
+
+  return img_array, mask_array
+
 
 def make_dataset(contour_dcm_path, contour_list, mr_dir_path, dt_type):
 
@@ -34,53 +92,17 @@ def make_dataset(contour_dcm_path, contour_list, mr_dir_path, dt_type):
   mr = MRImage()
   mr.load(mr_dir_path)
 
-  img_shape = mr.volume[0,:,:].shape
   dcm_num = len(mr.volume)  # dicomファイルの個数
+  img_shape = mr.volume[0,:,:].shape
 
-  img_array = np.array([])
-  mask_array = np.array([])
-  counter = 0
+  prostate_st = contours[contour_list[-1]]
   st = contours[contour_list[0]]
-  for frame in range(dcm_num):
 
-    # prostateのminimum所持数が30
-    if counter >= 30:
-      break
-
-    if mr.z_array[frame] in st['paths']:
-      # 画像を追加
-      img = mr.volume[frame,:,:]
-      img /= np.amax(img) # 画像を正規化
-      img_array = np.append(img_array, img)
-
-      dpi = img_shape[0] / 4.61   # 4.61はmatplotlibにより画像が小さくなることへの対応
-      fig = plt.figure(figsize=(6,6), dpi=dpi)
-      ax = fig.add_subplot(111)
-
-      # マスク画像を作成する
-      extent = (mr.x_min, mr.x_max, mr.y_max, mr.y_min)
-      black = np.zeros(shape=img_shape)
-      ax.imshow(black, cmap='gray', extent=extent)
-      # ax.imshow(mr.volume[frame,:,:], cmap='gray', extent=extent)
-
-      patch = patches.PathPatch(st['paths'][mr.z_array[frame]], fill=True, ec=st['ec'], fc=st['fc'], lw=2)
-      ax.add_patch(patch)
-      counter += 1
-
-      ax.set_aspect('equal')
-      ax.axis('off')
-      # plt.show()
-      plt.savefig('mask.png', facecolor='azure', bbox_inches='tight', pad_inches=0)
-      plt.close()
-
-      # 画像として保存したマスクをndarrayで呼び出して保存
-      mask = cv2.imread('mask.png')
-      mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
-      mask[mask != 0] = 255
-      mask_array = np.append(mask_array, mask)
+  img_array, mask_array = around_prostate(prostate_st, dcm_num, mr, st, img_shape)
 
   os.remove('mask.png')
-
+  del contours, mr
+  gc.collect()
   img_array = img_array.reshape(-1, *img_shape)
   mask_array = mask_array.reshape(-1, *img_shape)
 
@@ -89,19 +111,46 @@ def make_dataset(contour_dcm_path, contour_list, mr_dir_path, dt_type):
   save_npy(f'../{dt_type}_mask.npy', mask_array, img_shape)
 
 
+def inter_patient(contour_list, dates):
+  # patients = [4, 7, 8, 9, 10, 11, 12, 14, 17, 20]
+  patients = [4, 7]
+  for patient in patients:
+    patient_path = f'/home/uchiyama/work/voxelmorph/dataset/person_{patient}'
+    for date in dates:
+      if date == 'before': continue
+
+      mov_contour_path = f'{patient_path}/before/contour/contour.dcm'
+      fix_contour_path = f'{patient_path}/{date}/contour/contour.dcm'
+      mov_mr_dir_path = f'{patient_path}/before/img/'
+      fix_mr_dir_path = f'{patient_path}/{date}/img/'
+
+      make_dataset(mov_contour_path, contour_list, mov_mr_dir_path, 'moving')
+      make_dataset(fix_contour_path, contour_list, fix_mr_dir_path, 'fixed')
+      print(f'person_{patient}, moving: before, fixed: {date}')
+
+def intra_patient():
+  fr_image_path = '/home/uchiyama/work/voxelmorph/dataset/person_4'
+  # contour_list = ['Bladder D+E', 'Rectum D+E', 'Prostate D+E', 'CTV D+E', 'SV D+E]
+  contour_list = ['Bladder', 'Prostate']
+
+  for mov in dates:
+    for fix in dates:
+      if mov == fix: continue
+      # mov_contour_dcm_path = f'{fr_image_path}/contour/dcm/contour_{mov}.dcm'
+      # fix_contour_dcm_path = f'{fr_image_path}/contour/dcm/contour_{fix}.dcm'
+      # mov_mr_dir_path = f'{fr_image_path}/{mov}/dcm/'
+      # fix_mr_dir_path = f'{fr_image_path}/{fix}/dcm/'
+      mov_contour_dcm_path = f'{fr_image_path}/{mov}/contour/contour.dcm'
+      fix_contour_dcm_path = f'{fr_image_path}/{fix}/contour/contour.dcm'
+      mov_mr_dir_path = f'{fr_image_path}/{mov}/img/'
+      fix_mr_dir_path = f'{fr_image_path}/{fix}/img/'
+
+      make_dataset(mov_contour_dcm_path, contour_list, mov_mr_dir_path, 'moving')
+      make_dataset(fix_contour_dcm_path, contour_list, fix_mr_dir_path, 'fixed')
+      print(mov, fix)
+
 if __name__ == '__main__':
-  # dates = ['0829'] * 4 + ['0831'] * 4
-  dates = ['0831', '0902', '0906', '0908', '0829', '0902', '0906', '0908']
-  # dt_type = 'moving'
-  dt_type = 'fixed'
-  for date in dates:
-    fr_image_path = '/home/uchiyama/work/VoxelMorph/MR-MR/16/FrImage'
-    contour_dcm_path = f'{fr_image_path}/contour/dcm/contour_{date}.dcm'
-    mr_dir_path = f'{fr_image_path}/{date}/dcm/'
-    # contour_list = ['Bladder D+E', 'Rectum D+E', 'Prostate D+E', 'CTV D+E']
-    contour_list = ['Prostate D+E']
-
-    make_dataset(contour_dcm_path, contour_list, mr_dir_path, dt_type)
-
-  moving = np.load('../fixed.npy')
-  print(moving.shape)
+  contour_list = ['Bladder', 'Prostate']
+  dates = ['before', 'after_1', 'after_2', 'after_3', 'after_4', 'after_5']
+  # intra_patient()
+  inter_patient(contour_list, dates)
