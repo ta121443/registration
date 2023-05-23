@@ -111,35 +111,27 @@ def make_dataset(contour_dcm_path, contour_list, mr_dir_path, dt_type):
   save_npy(f'../{dt_type}_mask.npy', mask_array, img_shape)
 
 
-def inter_patient(contour_list, dates):
-  # patients = [4, 7, 8, 9, 10, 11, 12, 14, 17, 20]
-  patients = [4, 7]
+def inter_patient(mov_contour_list, fix_contour_list, dates):
+  patients = [7, 8, 9, 10, 11, 14, 17, 20]
   for patient in patients:
     patient_path = f'/home/uchiyama/work/voxelmorph/dataset/person_{patient}'
     for date in dates:
-      if date == 'before': continue
-
-      mov_contour_path = f'{patient_path}/before/contour/contour.dcm'
+      mov_contour_path = f'{patient_path}/moving/contour/contour.dcm'
       fix_contour_path = f'{patient_path}/{date}/contour/contour.dcm'
-      mov_mr_dir_path = f'{patient_path}/before/img/'
+      mov_mr_dir_path = f'{patient_path}/moving/img/'
       fix_mr_dir_path = f'{patient_path}/{date}/img/'
 
-      make_dataset(mov_contour_path, contour_list, mov_mr_dir_path, 'moving')
-      make_dataset(fix_contour_path, contour_list, fix_mr_dir_path, 'fixed')
-      print(f'person_{patient}, moving: before, fixed: {date}')
+      make_dataset(mov_contour_path, mov_contour_list, mov_mr_dir_path, 'moving')
+      make_dataset(fix_contour_path, fix_contour_list, fix_mr_dir_path, 'fixed')
+      print(f'person_{patient}, moving: moving, fixed: {date}')
 
 def intra_patient():
   fr_image_path = '/home/uchiyama/work/voxelmorph/dataset/person_4'
   # contour_list = ['Bladder D+E', 'Rectum D+E', 'Prostate D+E', 'CTV D+E', 'SV D+E]
-  contour_list = ['Bladder', 'Prostate']
 
   for mov in dates:
     for fix in dates:
       if mov == fix: continue
-      # mov_contour_dcm_path = f'{fr_image_path}/contour/dcm/contour_{mov}.dcm'
-      # fix_contour_dcm_path = f'{fr_image_path}/contour/dcm/contour_{fix}.dcm'
-      # mov_mr_dir_path = f'{fr_image_path}/{mov}/dcm/'
-      # fix_mr_dir_path = f'{fr_image_path}/{fix}/dcm/'
       mov_contour_dcm_path = f'{fr_image_path}/{mov}/contour/contour.dcm'
       fix_contour_dcm_path = f'{fr_image_path}/{fix}/contour/contour.dcm'
       mov_mr_dir_path = f'{fr_image_path}/{mov}/img/'
@@ -150,7 +142,8 @@ def intra_patient():
       print(mov, fix)
 
 if __name__ == '__main__':
-  contour_list = ['Bladder', 'Prostate']
-  dates = ['before', 'after_1', 'after_2', 'after_3', 'after_4', 'after_5']
+  mov_contour_list = ['4_Bladder', '1_Prostate']
+  fix_contour_list = ['Bladder D+E', 'Prostate D+E']
+  dates = ['fixed_1', 'fixed_2', 'fixed_3', 'fixed_4', 'fixed_5']
   # intra_patient()
-  inter_patient(contour_list, dates)
+  inter_patient(mov_contour_list, fix_contour_list, dates)
